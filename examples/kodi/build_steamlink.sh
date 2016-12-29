@@ -3,12 +3,13 @@
 
 TOP="${PWD}"
 SRC="${TOP}/kodi-src"
+NCPU=`grep -c processor /proc/cpuinfo`
 
 #
 # Download the source to Kodi
 #
 if [ ! -d "${SRC}" ]; then
-	git clone -b "16.1-Jarvis" https://github.com/xbmc/xbmc.git "${SRC}" || exit 1
+	git clone -b "Krypton" https://github.com/xbmc/xbmc.git "${SRC}" || exit 1
 	rm -f "${TOP}/.patch-applied"
 fi
 
@@ -19,7 +20,7 @@ if [ "${TOP}/kodi.patch" -nt "${TOP}/.patch-applied" ]; then
 	pushd "${SRC}"
 	git clean -fxd
 	git checkout .
-	patch -p1 <"${TOP}/kodi.patch" || exit 1
+	git am <"${TOP}/kodi.patch" || exit 1
 	popd
 	touch "${TOP}/.patch-applied"
 fi
@@ -147,7 +148,11 @@ if [ ! -L "${DEPS_INSTALL_PATH}/lib/libssl.so" ]; then
 	done
 fi
 
+# Build binary add-ons
+make -C target/binary-addons PREFIX="${TOP}/steamlink/apps/kodi" -j20 || exit 3
+
 # All done!
+
 popd
 
 #
@@ -173,28 +178,31 @@ pushd "${SRC}"
 ./configure $STEAMLINK_CONFIGURE_OPTS --prefix=/home/apps/kodi --disable-x11 || exit 4
 
 make clean
-make $MAKE_J || exit 5
+make -j${NCPU} || exit 5
 
 export DESTDIR="${TOP}/steamlink/apps/kodi"
 make install
 for dir in "${DESTDIR}/home/apps/kodi"/*; do
-    rm -rf "${DESTDIR}/$(basename $dir)"
-    mv -v "$dir" "${DESTDIR}"
+    cp -av "$dir" "${DESTDIR}"
 done
+
+# Sanity check
+if [ "${DESTDIR}/home" == "/home" ]; then
+    echo "Aborting!"
+    exit 6
+fi
 rm -rf "${DESTDIR}/home"
 
-cp -a ${DEPS_INSTALL_PATH}/lib/python2.6 ${DESTDIR}/lib/
+cp -a ${DEPS_INSTALL_PATH}/lib/python2.7 ${DESTDIR}/lib/
 
 for i in \
 	libass.so.5 \
 	libbluray.so.1 \
-	libcec.so.3.0 \
+	libcec.so.4.0.0 \
 	libcrypto.so.1.0.0 \
 	libcurl.so.4 \
-	libgif.so.7 \
-	libnfs.so.4 \
+	libnfs.so.8 \
 	libplist.so.1 \
-	librtmp.so.1 \
 	libshairplay.so.0 \
 	libsmbclient.so.0 \
 	libssl.so.1.0.0 \
